@@ -3,14 +3,71 @@ import {sanityClient, urlFor} from "@/sanity";
 import Header from "@/components/Header";
 import {Post} from "@/typings";
 import {GetStaticProps} from "next";
-import Image from "next/image";
 import PortableText from "react-portable-text";
+import {useForm, SubmitHandler} from "react-hook-form";
+import {useState} from "react";
+
+interface IFormInput {
+  _id: string;
+  name: string;
+  email: string;
+  comment: string;
+}
 
 interface Props {
   post: Post;
 }
 
 function Post({post}: Props) {
+  const [submitted, setSubmitted] = useState<boolean>(false);
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: {errors},
+  } = useForm<IFormInput>();
+
+  const onSubmit: SubmitHandler<IFormInput> = async (data) => {
+    await fetch("/api/createComment", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    })
+      .then((res) => {
+        if (res.status === 200) {
+          console.log("Comment created successfully", data);
+          setSubmitted(true);
+        }
+      })
+      .catch((err) => {
+        console.log(err);
+        setSubmitted(false);
+      });
+
+    // const query = `mutation createComment($data: CommentInput) {
+    //   createComment(data: $data) {
+    //     _id
+    //     name
+    //     email
+    //     comment
+    //   }
+    // }`;
+
+    // const variables = {
+    //   data: {
+    //     _id: data._id,
+    //     name: data.name,
+    //     email: data.email,
+    //     comment: data.comment,
+    //   },
+    // };
+
+    // const res = await sanityClient.fetch(query, variables);
+    // console.log(res);
+  };
+
   return (
     <main>
       <Header />
@@ -59,6 +116,92 @@ function Post({post}: Props) {
           />
         </div>
       </article>
+      <hr className='max-w-lg my-5 mx-auto border border-yellow-500' />
+      {submitted ? (
+        <div className='flex flex-col p-10 my-10 bg-yellow-500 text-white max-w-2xl mx-auto'>
+          <h3 className='text-3xl font-bold'>Thank you for your comment!</h3>
+          <p>Your comment will be reviewed and published shortly.</p>
+        </div>
+      ) : (
+        <form
+          className='flex flex-col p-5 max-w-2xl mx-auto mb-10'
+          onSubmit={handleSubmit(onSubmit)}
+        >
+          <h3 className='text-sm text-yellow-500'>Enjoyed this article?</h3>
+          <h4 className='text-3xl font-bold'>Leave a comment</h4>
+          <hr className='py-3 mt-2' />
+
+          <input
+            {...register("_id", {required: true})}
+            type='hidden'
+            name='_id'
+            value={post._id}
+          />
+
+          <label className='block mb-5'>
+            <span className='text-gray-700 '>Name</span>
+            <input
+              {...register("name", {required: true})}
+              className='shadow border rounded py-2 px-3 form-input mt-1 block w-full outline-none focus:ring ring-yellow-500'
+              type='text'
+              placeholder='John Doe'
+            />
+          </label>
+          <label className='block mb-5'>
+            <span className='text-gray-700 '>Email</span>
+            <input
+              {...register("email", {required: true})}
+              className='shadow border rounded py-2 px-3 form-input mt-1 block w-full outline-none focus:ring ring-yellow-500'
+              type='text'
+              placeholder='your@email.com'
+            />
+          </label>
+          <label className='block mb-5'>
+            <span className='text-gray-700 '>Comment</span>
+            <textarea
+              {...register("comment", {required: true})}
+              className='shadow border rounded py-2 px-3 form-textarea mt-1 block w-full outline-none focus:ring ring-yellow-500'
+              placeholder='Enter your comment...'
+              rows={8}
+            />
+          </label>
+          {/* errors will return when field validation fails  */}
+          <div className='flex flex-col p-5'>
+            {errors.name && (
+              <span className='text-red-500'>The Name field is required</span>
+            )}
+            {errors.email && (
+              <span className='text-red-500'>The Email field is required</span>
+            )}
+            {errors.comment && (
+              <span className='text-red-500'>
+                The Comment field is required
+              </span>
+            )}
+          </div>
+          <input
+            type='submit'
+            className='shadow bg-yellow-500 hover:bg-yellow-400 focus:shadow-outline focus:outline-none text-white font-bold py-2 px-4 rounded cursor-pointer'
+          />
+        </form>
+      )}
+      {/* comments */}
+      <div className=' flex flex-col p-10 my-10 max-w-3xl mx-auto shadow-yellow-500 shadow space-y-2 '>
+        <h3 className='text-4xl'>Comments</h3>
+        <hr className='pb-2' />
+        {post.comments.length > 0 ? (
+          post.comments.map((comment) => (
+            <div key={comment._id} className=''>
+              <p className=''>
+                <span className='text-yellow-500'>{comment.name}</span>:{" "}
+                {comment.comment}
+              </p>
+            </div>
+          ))
+        ) : (
+          <p className='text-center'>No comments yet</p>
+        )}
+      </div>
     </main>
   );
 }
@@ -92,6 +235,11 @@ export const getStaticProps: GetStaticProps = async ({params}: any) => {
         name,
         image
     },
+    'comments': *[
+    _type == "comment" &&
+    post._ref == ^._id &&
+    approved == true
+    ],
     description,
     mainImage,
     slug,
